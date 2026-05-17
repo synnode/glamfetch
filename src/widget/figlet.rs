@@ -16,9 +16,10 @@ use figlet_rs::FIGlet;
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -29,7 +30,7 @@ pub struct FigletConfig {
     #[serde(default = "default_font")]
     pub font: String,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
     pub show_if: Option<String>,
 }
@@ -41,7 +42,7 @@ fn default_font() -> String {
 pub struct FigletWidget {
     text_template: String,
     font: FIGlet,
-    style: Style,
+    paint: PaintSpec,
 }
 
 // ---------------------------------------------------------------------------
@@ -68,20 +69,11 @@ impl FigletWidget {
     pub fn build(cfg: FigletConfig, ctx: &StaticContext) -> Result<Self, ConfigError> {
         let text_template = eval_template(&cfg.text, &EvalContext::build_only(ctx))?;
         let font = load_font(&cfg.font);
-        let fg = match cfg.color.as_deref() {
-            Some(raw) => {
-                let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-                parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?
-            }
-            None => None,
-        };
+        let paint = resolve_optional(cfg.color.as_ref(), Style::plain(), ctx)?;
         Ok(Self {
             text_template,
             font,
-            style: Style {
-                fg,
-                ..Style::plain()
-            },
+            paint,
         })
     }
 }
@@ -184,7 +176,7 @@ impl Widget for FigletWidget {
                 if line.trim().is_empty() {
                     StyledLine::empty()
                 } else {
-                    StyledLine::from_segments(vec![Segment::styled(line.to_string(), self.style)])
+                    StyledLine::from_segments(self.paint.paint_line(line))
                 }
             })
             .collect();

@@ -1,0 +1,35 @@
+# Gruvbox dark palette.
+# Theme-only base; extend from a user config to add layout:
+#   extends = "gruvbox"
+# Source: https://github.com/morhetz/gruvbox
+
+[meta]
+name = "gruvbox"
+
+[theme]
+bg          = "#282828"
+bg_soft     = "#32302f"
+bg_hard     = "#1d2021"
+fg          = "#ebdbb2"
+muted       = "#928374"
+subtext     = "#a89984"
+red         = "#fb4934"
+green       = "#b8bb26"
+yellow      = "#fabd2f"
+blue        = "#83a598"
+purple      = "#d3869b"
+aqua        = "#8ec07c"
+orange      = "#fe8019"
+gray        = "#7c6f64"
+dark_red    = "#cc241d"
+dark_green  = "#98971a"
+dark_yellow = "#d79921"
+
+accent     = "${theme.orange}"
+secondary  = "${theme.aqua}"
+warm       = "${theme.yellow}"
+hot        = "${theme.red}"
+ok         = "${theme.green}"
+border_fg  = "${theme.muted}"
+bar_filled = "${theme.accent}"
+bar_empty  = "${theme.bg_soft}"

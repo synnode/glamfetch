@@ -7,9 +7,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -24,7 +25,7 @@ pub struct SeparatorConfig {
     #[serde(default = "default_default_length")]
     pub default_length: usize,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
     pub show_if: Option<String>,
 }
@@ -49,28 +50,19 @@ pub struct SeparatorWidget {
     glyph: String,
     length: Length,
     default_length: usize,
-    style: Style,
+    paint: PaintSpec,
 }
 
 impl SeparatorWidget {
     pub fn build(cfg: SeparatorConfig, ctx: &StaticContext) -> Result<Self, ConfigError> {
         let length = parse_length(&cfg.length)?;
         let glyph = eval_template(&cfg.char, &EvalContext::build_only(ctx))?;
-        let fg = match cfg.color.as_deref() {
-            Some(raw) => {
-                let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-                parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?
-            }
-            None => None,
-        };
+        let paint = resolve_optional(cfg.color.as_ref(), Style::plain(), ctx)?;
         Ok(Self {
             glyph,
             length,
             default_length: cfg.default_length.max(1),
-            style: Style {
-                fg,
-                ..Style::plain()
-            },
+            paint,
         })
     }
 }
@@ -99,7 +91,7 @@ impl Widget for SeparatorWidget {
             return Ok(Cell::empty());
         }
         let text = self.glyph.repeat(count);
-        let line = StyledLine::from_segments(vec![Segment::styled(text, self.style)]);
+        let line = StyledLine::from_segments(self.paint.paint_line(&text));
         let width = line.width;
         Ok(Cell {
             lines: vec![line],

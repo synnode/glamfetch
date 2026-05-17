@@ -5,9 +5,10 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::StaticContext;
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -21,7 +22,7 @@ pub struct AsciiConfig {
     #[serde(default)]
     pub path: Option<String>,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
     pub show_if: Option<String>,
 }
@@ -32,7 +33,7 @@ fn default_source() -> String {
 
 pub struct AsciiWidget {
     lines: Vec<String>,
-    style: Style,
+    paint: PaintSpec,
 }
 
 impl AsciiWidget {
@@ -67,21 +68,9 @@ impl AsciiWidget {
             .map(|l| l.to_string())
             .collect();
 
-        let fg = match cfg.color.as_deref() {
-            Some(raw) => {
-                let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-                parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?
-            }
-            None => None,
-        };
+        let paint = resolve_optional(cfg.color.as_ref(), Style::plain(), ctx)?;
 
-        Ok(Self {
-            lines,
-            style: Style {
-                fg,
-                ..Style::plain()
-            },
-        })
+        Ok(Self { lines, paint })
     }
 }
 
@@ -107,7 +96,7 @@ impl Widget for AsciiWidget {
                 if line.is_empty() {
                     StyledLine::empty()
                 } else {
-                    StyledLine::from_segments(vec![Segment::styled(line.clone(), self.style)])
+                    StyledLine::from_segments(self.paint.paint_line(line))
                 }
             })
             .collect();

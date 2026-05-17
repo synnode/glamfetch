@@ -1,0 +1,5 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::Truecolor)"
+---
+[38;2;255;0;0mA[0m[38;2;191;0;64mB[0m[38;2;128;0;128mC[0m[38;2;64;0;191mD[0m[38;2;0;0;255mE[0m

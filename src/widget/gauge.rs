@@ -7,9 +7,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Segment, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -23,9 +24,9 @@ pub struct GaugeConfig {
     #[serde(default = "default_width")]
     pub width: usize,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
-    pub empty_color: Option<String>,
+    pub empty_color: Option<ColorSpec>,
     #[serde(default = "default_filled_char")]
     pub filled_char: String,
     #[serde(default = "default_empty_char")]
@@ -60,17 +61,13 @@ pub struct GaugeWidget {
     filled_char: String,
     empty_char: String,
     show_percent: bool,
-    filled_style: Style,
-    empty_style: Style,
+    filled_paint: PaintSpec,
+    empty_paint: PaintSpec,
 }
 
 impl GaugeWidget {
     pub fn build(cfg: GaugeConfig, ctx: &StaticContext) -> Result<Self, ConfigError> {
         let value_template = eval_template(&cfg.value, &EvalContext::build_only(ctx))?;
-
-        let filled_style = make_style(cfg.color.as_deref(), ctx)?;
-        let empty_style = make_style(cfg.empty_color.as_deref(), ctx)?;
-
         Ok(Self {
             label: cfg.label,
             value_template,
@@ -79,22 +76,10 @@ impl GaugeWidget {
             filled_char: cfg.filled_char,
             empty_char: cfg.empty_char,
             show_percent: cfg.show_percent,
-            filled_style,
-            empty_style,
+            filled_paint: resolve_optional(cfg.color.as_ref(), Style::plain(), ctx)?,
+            empty_paint: resolve_optional(cfg.empty_color.as_ref(), Style::plain(), ctx)?,
         })
     }
-}
-
-fn make_style(color: Option<&str>, ctx: &StaticContext) -> Result<Style, ConfigError> {
-    let Some(raw) = color else {
-        return Ok(Style::plain());
-    };
-    let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-    let fg = parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?;
-    Ok(Style {
-        fg,
-        ..Style::plain()
-    })
 }
 
 impl Widget for GaugeWidget {
@@ -126,16 +111,16 @@ impl Widget for GaugeWidget {
         }
 
         if filled_count > 0 {
-            segments.push(Segment::styled(
-                self.filled_char.repeat(filled_count),
-                self.filled_style,
-            ));
+            let bar = self.filled_char.repeat(filled_count);
+            for seg in self.filled_paint.paint_line(&bar) {
+                segments.push(seg);
+            }
         }
         if empty_count > 0 {
-            segments.push(Segment::styled(
-                self.empty_char.repeat(empty_count),
-                self.empty_style,
-            ));
+            let bar = self.empty_char.repeat(empty_count);
+            for seg in self.empty_paint.paint_line(&bar) {
+                segments.push(seg);
+            }
         }
 
         let line = StyledLine::from_segments(segments);

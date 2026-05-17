@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use unicode_width::UnicodeWidthStr;
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Segment, Style, StyledLine};
 
 use super::{Cell, Widget, WidgetConfig};
 
@@ -20,9 +21,9 @@ pub struct BoxConfig {
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
-    pub title_color: Option<String>,
+    pub title_color: Option<ColorSpec>,
     #[serde(default)]
-    pub border_color: Option<String>,
+    pub border_color: Option<ColorSpec>,
     /// `rounded` is the only style supported in v0.1.0.
     #[serde(default = "default_border")]
     pub border: String,
@@ -147,7 +148,7 @@ fn pick_border(name: &str) -> Result<BorderChars, ConfigError> {
 
 pub struct BoxWidget {
     title: Option<String>,
-    title_style: Style,
+    title_paint: PaintSpec,
     border_style: Style,
     chars: BorderChars,
     padding: Padding,
@@ -163,32 +164,29 @@ impl BoxWidget {
             None => None,
         };
 
-        let title_style = make_style(cfg.title_color.as_deref(), ctx)?;
-        let border_style = make_style(cfg.border_color.as_deref(), ctx)?;
+        let title_paint = resolve_optional(cfg.title_color.as_ref(), Style::plain(), ctx)?;
+
+        // Border uses only the first stop of any gradient — interpolating
+        // across the perimeter requires knowing total width at build time,
+        // which we don't.
+        let border_paint = resolve_optional(cfg.border_color.as_ref(), Style::plain(), ctx)?;
+        let border_style = Style {
+            fg: border_paint.colors.first().copied(),
+            ..Style::plain()
+        };
+
         let padding = parse_padding(&cfg.padding);
         let child = cfg.child.build(ctx)?;
 
         Ok(Self {
             title,
-            title_style,
+            title_paint,
             border_style,
             chars,
             padding,
             child,
         })
     }
-}
-
-fn make_style(color: Option<&str>, ctx: &StaticContext) -> Result<Style, ConfigError> {
-    let Some(raw) = color else {
-        return Ok(Style::plain());
-    };
-    let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-    let fg = parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?;
-    Ok(Style {
-        fg,
-        ..Style::plain()
-    })
 }
 
 impl Widget for BoxWidget {
@@ -245,7 +243,9 @@ impl BoxWidget {
         if let Some(ref title) = self.title {
             let title_text = format!(" {title} ");
             let title_w = UnicodeWidthStr::width(title_text.as_str());
-            segments.push(Segment::styled(title_text, self.title_style));
+            for seg in self.title_paint.paint_line(&title_text) {
+                segments.push(seg);
+            }
 
             if body_width > title_w {
                 let fill = body_width - title_w;

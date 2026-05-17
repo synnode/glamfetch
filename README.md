@@ -6,7 +6,7 @@ A glamorous system-info fetch tool for the terminal. Alternative to
 `fastfetch` / `neofetch` for rice enthusiasts who want full styling control
 without sacrificing speed.
 
-> **Status:** post-v0.1.0, Phase 5 complete on `master`. See
+> **Status:** post-v0.1.0, Phase 6 complete on `master`. See
 > [`.docs/glamfetch-spec.md`](.docs/glamfetch-spec.md) for the full v1 spec
 > and phase roadmap. The v0.2.0 launch is the version that goes on r/unixporn.
 
@@ -79,20 +79,29 @@ What's in (master, post-v0.1.0):
 - Widgets: `text`, `stack`, `row` (inner), `box`, `gauge`, `bar`,
   `spacer`, `separator`, `figlet`, `ascii`
 - Box borders: `rounded`, `sharp`, `double`, `thick`, `ascii`
-- Figlet fonts (embedded): `standard`, `slant`, `small`, `big`
-- Themes with `${theme.*}` variable resolution
+- Figlet fonts: 11 embedded (`standard`, `slant`, `small`, `big`,
+  `ansi_shadow`, `shadow`, `block`, `mini`, `lean`, `script`, `banner`)
+  plus any `.flf` via filesystem path
+- Themes with `${theme.*}` variable resolution + cycle detection
+- **Per-character gradient colors** on any colored widget
+  (`color = { gradient = ["#ff8800", "${theme.accent}"] }`)
 - Filters: `humanize`, `round`, `truncate`, `upper`/`lower`/`title`, `pad`, `default`
 - `show_if` conditional rendering (JSON-truthy semantics)
+- `extends = "<preset|path>"` config inheritance (string or array,
+  CSS-cascade order, deep merge)
+- Built-in presets: `default`, `catppuccin`, `gruvbox`, `nord`
+  (`--list-presets`)
 - True-color ANSI + 256-color quantizer fallback
 - `--pipe`, `--json`, `--print-data`, `NO_COLOR`, non-TTY auto-detect
+- `--watch [INTERVAL]` — interval re-render in alt-screen, `q` / `Esc` /
+  `Ctrl+C` to exit
+- `--edit` — live preview pane; re-renders on config save via `notify`,
+  parse errors render in place. Pair with `tmux`/`zellij` for split view.
 - Parallel collector execution via `rayon`
 - Collector pre-pass: only collectors referenced by the layout actually run
 
 Coming in v0.2.0:
-- `--watch` + `--edit` (live preview)
-- Gradients (per-char interpolation)
-- Catppuccin / Gruvbox / Nord presets
-- `extends = "..."` config inheritance
+- Polished launch (screenshots, man page, AUR PKGBUILD)
 
 ## Performance
 
@@ -100,11 +109,11 @@ Measured on an Intel i7-13700K, release build (LTO + strip), Linux:
 
 | Command | Time |
 |---|---|
-| `glamfetch --version` (cold start) | **2-4ms** |
-| `glamfetch --pipe`, default preset (CPU + RAM gauges) | **59-60ms** |
-| `glamfetch --pipe`, minimal preset (no CPU usage) | **6-7ms** |
-| `glamfetch --json` (runs every collector) | **59-60ms** |
-| Binary size (release, stripped) | **2.4 MB** |
+| `glamfetch --version` (cold start) | **1-2ms** |
+| `glamfetch --pipe`, default preset (CPU + RAM gauges) | **60-61ms** |
+| `glamfetch --pipe`, minimal preset (no CPU usage) | **7ms** |
+| `glamfetch --json` (runs every collector) | **60ms** |
+| Binary size (release, stripped) | **2.8 MB** |
 
 Two things are doing the heavy lifting here:
 

@@ -64,9 +64,8 @@ fn run(cli: &Cli) -> Result<()> {
         Command::Once => cmd_once(cli),
         Command::Json => cmd_json(),
         Command::PrintData => cmd_print_data(),
-        Command::Edit | Command::Watch => {
-            bail!("not implemented in v0.1.0 (Phase 6)")
-        }
+        Command::Watch => cmd_watch(cli),
+        Command::Edit => cmd_edit(cli),
     }
 }
 
@@ -148,7 +147,9 @@ fn cmd_print_config(cli: &Cli) -> Result<()> {
 }
 
 fn cmd_list_presets() -> Result<()> {
-    println!("default");
+    for (name, _) in glamfetch::config::extends::BUILTIN_PRESETS {
+        println!("{name}");
+    }
     Ok(())
 }
 
@@ -157,6 +158,15 @@ fn cmd_json() -> Result<()> {
     let text = serde_json::to_string_pretty(&data).context("serialising collector data")?;
     println!("{text}");
     Ok(())
+}
+
+fn cmd_watch(cli: &Cli) -> Result<()> {
+    let interval = cli.watch.unwrap_or(1.0);
+    glamfetch::modes::watch::run(cli.config.as_deref(), interval, cli.pipe)
+}
+
+fn cmd_edit(cli: &Cli) -> Result<()> {
+    glamfetch::modes::edit::run(cli.config.clone(), cli.pipe)
 }
 
 fn cmd_print_data() -> Result<()> {

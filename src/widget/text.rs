@@ -2,14 +2,16 @@
 //!
 //! Build-time: resolve theme/icons/env refs in `content` and the optional
 //! `color`. Render-time: resolve `${data.*}` refs against the registry,
-//! dedent, split into lines.
+//! dedent, split into lines, and paint each line via the cached
+//! [`PaintSpec`] (which handles gradients per-character).
 
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -18,7 +20,7 @@ use super::{Cell, Widget};
 pub struct TextConfig {
     pub content: String,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
     pub bold: bool,
     #[serde(default)]
@@ -29,30 +31,21 @@ pub struct TextConfig {
 
 pub struct TextWidget {
     content_template: String,
-    style: Style,
+    paint: PaintSpec,
 }
 
 impl TextWidget {
     pub fn build(cfg: TextConfig, ctx: &StaticContext) -> Result<Self, ConfigError> {
         let template = eval_template(&cfg.content, &EvalContext::build_only(ctx))?;
-
-        let fg = match cfg.color.as_deref() {
-            Some(raw) => {
-                let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-                parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?
-            }
-            None => None,
+        let attrs = Style {
+            bold: cfg.bold,
+            italic: cfg.italic,
+            ..Style::plain()
         };
-
+        let paint = resolve_optional(cfg.color.as_ref(), attrs, ctx)?;
         Ok(Self {
             content_template: template,
-            style: Style {
-                fg,
-                bg: None,
-                bold: cfg.bold,
-                italic: cfg.italic,
-                ..Style::plain()
-            },
+            paint,
         })
     }
 }
@@ -78,7 +71,7 @@ impl Widget for TextWidget {
                 if line.is_empty() {
                     StyledLine::empty()
                 } else {
-                    StyledLine::from_segments(vec![Segment::styled(line, self.style)])
+                    StyledLine::from_segments(self.paint.paint_line(line))
                 }
             })
             .collect();

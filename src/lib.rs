@@ -10,6 +10,7 @@ pub mod collect;
 pub mod config;
 pub mod error;
 pub mod layout;
+pub mod modes;
 pub mod render;
 pub mod style;
 pub mod theme;

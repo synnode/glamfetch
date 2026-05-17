@@ -16,7 +16,9 @@ use glamfetch::theme;
 use serde_json::json;
 
 fn parse(toml_text: &str) -> ConfigFile {
-    toml::from_str(toml_text).expect("fixture config parses")
+    let raw: toml::Value = toml::from_str(toml_text).expect("fixture toml parses");
+    let expanded = glamfetch::config::extends::expand(raw, None).expect("extends expands");
+    expanded.try_into().expect("fixture config parses")
 }
 
 fn build_frame(cfg: ConfigFile, registry: &CollectorRegistry) -> Vec<StyledLine> {
@@ -408,6 +410,55 @@ font = "small"
 "##;
     let frame = build_frame(parse(toml_text), &mock_registry());
     insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn gradient_per_char_interpolation() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[theme]
+start = "#ff0000"
+end   = "#0000ff"
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "text"
+content = "ABCDE"
+color = { gradient = ["${theme.start}", "${theme.end}"] }
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    // Truecolor snapshot proves each char gets a distinct interpolated escape.
+    insta::assert_snapshot!(
+        "gradient_truecolor",
+        render_mode(&frame, ColorMode::Truecolor)
+    );
+    insta::assert_snapshot!("gradient_pipe", render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn extends_inherits_theme_then_overrides() {
+    let toml_text = r##"
+extends = "catppuccin"
+
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "text"
+content = "${theme.muted}/${theme.accent}"
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    let rendered = render_mode(&frame, ColorMode::None);
+    // Both come from catppuccin base.
+    assert!(rendered.contains('/'), "{rendered:?}");
+    assert!(rendered.contains('#'), "{rendered:?}");
 }
 
 #[test]

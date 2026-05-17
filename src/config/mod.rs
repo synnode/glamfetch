@@ -3,7 +3,9 @@
 //! Phase 0: load + parse only. `extends` chains, deep-merging, and the
 //! expression evaluator land in Phase 2.
 
+pub mod color_spec;
 pub mod expr;
+pub mod extends;
 pub mod filters;
 pub mod prepass;
 pub mod schema;
@@ -61,28 +63,42 @@ pub struct LoadedConfig {
     pub config: ConfigFile,
 }
 
-/// Load + parse a config file from disk.
+/// Load + parse a config file from disk, expanding any `extends` chain.
 pub fn load_from_path(path: &Path) -> Result<LoadedConfig, ConfigError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Io {
         path: path.to_path_buf(),
         source,
     })?;
-    let config = parse(&text, path)?;
+    let origin_dir = path.parent();
+    let config = parse_with_extends(&text, path, origin_dir)?;
     Ok(LoadedConfig { text, config })
 }
 
 /// Parse the embedded default preset.
 pub fn load_embedded_default() -> Result<LoadedConfig, ConfigError> {
-    let config = parse(DEFAULT_PRESET, Path::new("<embedded:default>"))?;
+    let path = Path::new("<embedded:default>");
+    let config = parse_with_extends(DEFAULT_PRESET, path, None)?;
     Ok(LoadedConfig {
         text: DEFAULT_PRESET.to_string(),
         config,
     })
 }
 
-fn parse(text: &str, path: &Path) -> Result<ConfigFile, ConfigError> {
-    toml::from_str(text).map_err(|source| ConfigError::Parse {
+/// Parse + expand `extends` + materialise into the typed [`ConfigFile`].
+fn parse_with_extends(
+    text: &str,
+    path: &Path,
+    origin_dir: Option<&Path>,
+) -> Result<ConfigFile, ConfigError> {
+    let raw: toml::Value = toml::from_str(text).map_err(|source| ConfigError::Parse {
         path: path.to_path_buf(),
         source,
+    })?;
+    let expanded = extends::expand(raw, origin_dir)?;
+    expanded.try_into::<ConfigFile>().map_err(|err| {
+        ConfigError::Invalid(format!(
+            "{} (after extends expansion): {err}",
+            path.display()
+        ))
     })
 }

@@ -3,9 +3,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::collect::CollectorRegistry;
-use crate::config::expr::{EvalContext, StaticContext, eval_single, eval_template};
+use crate::config::color_spec::{ColorSpec, resolve_optional};
+use crate::config::expr::{EvalContext, StaticContext, eval_template};
 use crate::error::{ConfigError, RenderError};
-use crate::style::{Segment, Style, StyledLine, parse_color};
+use crate::style::{PaintSpec, Style, StyledLine};
 
 use super::{Cell, Widget};
 
@@ -22,9 +23,9 @@ pub struct BarConfig {
     #[serde(default = "default_empty_char")]
     pub empty_char: String,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<ColorSpec>,
     #[serde(default)]
-    pub empty_color: Option<String>,
+    pub empty_color: Option<ColorSpec>,
     #[serde(default)]
     pub show_if: Option<String>,
 }
@@ -48,8 +49,8 @@ pub struct BarWidget {
     width: usize,
     filled_char: String,
     empty_char: String,
-    filled_style: Style,
-    empty_style: Style,
+    filled_paint: PaintSpec,
+    empty_paint: PaintSpec,
 }
 
 impl BarWidget {
@@ -61,22 +62,10 @@ impl BarWidget {
             width: cfg.width.max(1),
             filled_char: cfg.filled_char,
             empty_char: cfg.empty_char,
-            filled_style: make_style(cfg.color.as_deref(), ctx)?,
-            empty_style: make_style(cfg.empty_color.as_deref(), ctx)?,
+            filled_paint: resolve_optional(cfg.color.as_ref(), Style::plain(), ctx)?,
+            empty_paint: resolve_optional(cfg.empty_color.as_ref(), Style::plain(), ctx)?,
         })
     }
-}
-
-fn make_style(color: Option<&str>, ctx: &StaticContext) -> Result<Style, ConfigError> {
-    let Some(raw) = color else {
-        return Ok(Style::plain());
-    };
-    let resolved = eval_single(raw, &EvalContext::build_only(ctx))?;
-    let fg = parse_color(&resolved).map_err(|err| ConfigError::Invalid(err.to_string()))?;
-    Ok(Style {
-        fg,
-        ..Style::plain()
-    })
 }
 
 impl Widget for BarWidget {
@@ -97,18 +86,14 @@ impl Widget for BarWidget {
         let filled_count = (ratio * self.width as f32).round() as usize;
         let empty_count = self.width.saturating_sub(filled_count);
 
-        let mut segments = Vec::with_capacity(2);
+        let mut segments = Vec::new();
         if filled_count > 0 {
-            segments.push(Segment::styled(
-                self.filled_char.repeat(filled_count),
-                self.filled_style,
-            ));
+            let bar = self.filled_char.repeat(filled_count);
+            segments.extend(self.filled_paint.paint_line(&bar));
         }
         if empty_count > 0 {
-            segments.push(Segment::styled(
-                self.empty_char.repeat(empty_count),
-                self.empty_style,
-            ));
+            let bar = self.empty_char.repeat(empty_count);
+            segments.extend(self.empty_paint.paint_line(&bar));
         }
         let line = StyledLine::from_segments(segments);
         let width = line.width;

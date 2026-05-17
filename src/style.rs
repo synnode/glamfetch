@@ -186,6 +186,93 @@ pub enum ColorParseError {
 }
 
 // ---------------------------------------------------------------------------
+// PaintSpec — resolved foreground + per-character paint behavior.
+//
+// A single `Color` paints a whole `Segment` uniformly. A list of two or
+// more colors triggers per-character gradient interpolation when the
+// widget calls [`PaintSpec::paint_line`]. The gradient itself isn't part
+// of `Color` so the rest of the styling stack stays `Copy`-friendly.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Default)]
+pub struct PaintSpec {
+    /// 0 entries → no foreground. 1 → solid. 2+ → gradient stops.
+    pub colors: Vec<Color>,
+    /// Bold/italic/underline/dim. `fg` is ignored here — `colors` is the
+    /// source of truth for foreground.
+    pub attrs: Style,
+}
+
+impl PaintSpec {
+    pub fn solid(color: Option<Color>) -> Self {
+        Self {
+            colors: color.into_iter().collect(),
+            attrs: Style::plain(),
+        }
+    }
+
+    pub fn gradient(stops: Vec<Color>) -> Self {
+        Self {
+            colors: stops,
+            attrs: Style::plain(),
+        }
+    }
+
+    pub fn with_attrs(mut self, attrs: Style) -> Self {
+        self.attrs = Style { fg: None, ..attrs };
+        self
+    }
+
+    /// Convert a line of text into one or more segments using this paint.
+    /// Single-color → one segment; gradient → one segment per character
+    /// with linearly interpolated RGB across the stops.
+    pub fn paint_line(&self, text: &str) -> Vec<Segment> {
+        if text.is_empty() {
+            return Vec::new();
+        }
+        match self.colors.len() {
+            0 => vec![Segment::styled(text.to_string(), self.attrs)],
+            1 => {
+                let mut style = self.attrs;
+                style.fg = Some(self.colors[0]);
+                vec![Segment::styled(text.to_string(), style)]
+            }
+            _ => {
+                let chars: Vec<char> = text.chars().collect();
+                let n = chars.len();
+                if n == 1 {
+                    let mut style = self.attrs;
+                    style.fg = Some(self.colors[0]);
+                    return vec![Segment::styled(chars[0].to_string(), style)];
+                }
+                let mut out = Vec::with_capacity(n);
+                for (i, ch) in chars.into_iter().enumerate() {
+                    let t = i as f32 / (n - 1) as f32;
+                    let color = sample_gradient(&self.colors, t);
+                    let mut style = self.attrs;
+                    style.fg = Some(color);
+                    out.push(Segment::styled(ch.to_string(), style));
+                }
+                out
+            }
+        }
+    }
+}
+
+fn sample_gradient(stops: &[Color], t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    let last = stops.len() - 1;
+    let scaled = t * last as f32;
+    let lo = scaled.floor() as usize;
+    let hi = (lo + 1).min(last);
+    let frac = scaled - lo as f32;
+    let (r0, g0, b0) = stops[lo].to_rgb();
+    let (r1, g1, b1) = stops[hi].to_rgb();
+    let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * frac).round() as u8;
+    Color::Rgb(lerp(r0, r1), lerp(g0, g1), lerp(b0, b1))
+}
+
+// ---------------------------------------------------------------------------
 // Styled segments / lines
 // ---------------------------------------------------------------------------
 
