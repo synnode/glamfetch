@@ -1,0 +1,51 @@
+# Glamfetch default preset — v0.1.0 ship scope.
+# Two rounded boxes side-by-side: system info on the left, hardware gauges on
+# the right. Borders, gauges, and theme colors all live here so this is the
+# best demo of what the v0.1 binary can render.
+
+[meta]
+name = "default"
+
+[theme]
+accent     = "#cba6f7"
+secondary  = "#94e2d5"
+muted      = "#6c7086"
+fg         = "#cdd6f4"
+border_fg  = "${theme.muted}"
+bar_filled = "${theme.accent}"
+bar_empty  = "${theme.muted}"
+
+[icons]
+set = "nerd-font"
+
+[layout]
+gap = 1
+align = "left"
+
+[[row]]
+gap = 2
+
+[[row.cell]]
+widget = "box"
+title = "system"
+title_color = "${theme.accent}"
+border_color = "${theme.border_fg}"
+padding = [0, 1]
+child = { widget = "text", color = "${theme.fg}", content = """
+  host    ${data.system.hostname}
+  user    ${data.system.user}
+  os      ${data.os.name}
+  kernel  ${data.kernel.version}
+  shell   ${data.system.shell}
+""" }
+
+[[row.cell]]
+widget = "box"
+title = "hardware"
+title_color = "${theme.secondary}"
+border_color = "${theme.border_fg}"
+padding = [0, 1]
+child = { widget = "stack", gap = 0, children = [
+  { widget = "gauge", label = "CPU ", value = "${data.cpu.usage}",    max = 100, color = "${theme.bar_filled}", empty_color = "${theme.bar_empty}", width = 18 },
+  { widget = "gauge", label = "RAM ", value = "${data.mem.percent}",  max = 100, color = "${theme.bar_filled}", empty_color = "${theme.bar_empty}", width = 18 },
+] }

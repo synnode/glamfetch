@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::None)"
+---
+╭ system ──────────╮
+│ host snowbox     │
+│ os   EndeavourOS │
+╰──────────────────╯

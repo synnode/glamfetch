@@ -1,0 +1,9 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::None)"
+---
+first 
+      
+second
+      
+third

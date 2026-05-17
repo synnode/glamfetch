@@ -1,0 +1,19 @@
+[layout]
+gap = 0
+
+[[row]]
+gap = 4
+
+[[row.cell]]
+widget = "text"
+content = """
+  hostname  ${data.system.hostname}
+  user      ${data.system.user}
+"""
+
+[[row.cell]]
+widget = "text"
+content = """
+  os        ${data.os.name}
+  kernel    ${data.kernel.version}
+"""

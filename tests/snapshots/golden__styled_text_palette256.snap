@@ -1,0 +1,5 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::Palette256)"
+---
+[1;38;5;208mhost snowbox[0m

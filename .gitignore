@@ -1,0 +1,13 @@
+# Build artifacts
+/target
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+
+# Personal MCP config (contains internal-network URLs)
+.mcp.json
+
+# Personal knowledge base / wiki (re-publish later as ARCHITECTURE.md if wanted)
+.wiki/

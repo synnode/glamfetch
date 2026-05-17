@@ -1,0 +1,6 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::None)"
+---
+hostname  snowbox    os        EndeavourOS   
+user      michael    kernel    6.19.6-arch1-1
