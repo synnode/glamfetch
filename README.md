@@ -4,7 +4,7 @@ A glamorous system-info fetch tool for the terminal. Alternative to
 `fastfetch` / `neofetch` for rice enthusiasts who want full styling control
 without sacrificing speed.
 
-> **Status:** v0.1.0 — walking-skeleton release. See
+> **Status:** post-v0.1.0, Phase 4 complete on `master`. See
 > [`.docs/glamfetch-spec.md`](.docs/glamfetch-spec.md) for the full v1 spec
 > and phase roadmap. The v0.2.0 launch is the version that goes on r/unixporn.
 
@@ -69,20 +69,22 @@ child = { widget = "text", content = """
 See [`.docs/glamfetch-spec.md`](.docs/glamfetch-spec.md) §6 for the full
 schema, §7 for collector field listings, §8 for widget reference.
 
-## v0.1.0 scope
+## Scope
 
-What's in:
-- Collectors: `system`, `os`, `kernel`, `cpu`, `mem`
+What's in (master, post-v0.1.0):
+- Collectors: `system`, `os`, `kernel`, `uptime`, `cpu`, `mem`, `disk`,
+  `gpu`, `battery`, `network`, `packages`, `desktop`, `datetime`
 - Widgets: `text`, `stack`, `box` (rounded border), `gauge`
 - Themes with `${theme.*}` variable resolution
 - Filters: `humanize`, `round`, `truncate`, `upper`/`lower`/`title`, `pad`, `default`
 - `show_if` conditional rendering (JSON-truthy semantics)
 - True-color ANSI + 256-color quantizer fallback
 - `--pipe`, `--json`, `--print-data`, `NO_COLOR`, non-TTY auto-detect
+- Parallel collector execution via `rayon`
+- Collector pre-pass: only collectors referenced by the layout actually run
 
 Coming in v0.2.0:
 - `--watch` + `--edit` (live preview)
-- Remaining collectors (uptime, disk, gpu, battery, network, packages, desktop, datetime)
 - Remaining widgets (bar, separator, spacer, figlet, ascii, inner row)
 - Gradients (per-char interpolation)
 - Catppuccin / Gruvbox / Nord presets
@@ -94,15 +96,21 @@ Measured on an Intel i7-13700K, release build (LTO + strip), Linux:
 
 | Command | Time |
 |---|---|
-| `glamfetch --version` (cold start) | **3-4ms** |
-| `glamfetch --pipe` (default preset, includes CPU usage) | **53-57ms** |
-| `glamfetch --json` (every collector) | **56-57ms** |
-| Binary size (release, stripped) | **1.9 MB** |
+| `glamfetch --version` (cold start) | **2-4ms** |
+| `glamfetch --pipe`, default preset (CPU + RAM gauges) | **59-60ms** |
+| `glamfetch --pipe`, minimal preset (no CPU usage) | **6-7ms** |
+| `glamfetch --json` (runs every collector) | **59-60ms** |
+| Binary size (release, stripped) | **2.1 MB** |
 
-The 50ms floor on default-preset render comes from CPU usage sampling: it
-requires two `/proc/stat` snapshots with a delay between them (spec §11).
-Configs that don't reference `${data.cpu.usage}` will render in ~5-7ms. The
-collector pre-pass (Phase 4) will skip unreferenced collectors automatically.
+Two things are doing the heavy lifting here:
+
+- **Collector pre-pass.** Before priming the registry the binary scans the
+  config for `${data.<root>}` references and only runs collectors actually
+  named. A preset that doesn't reference `${data.cpu.usage}` skips the 50ms
+  sample window automatically.
+- **Parallel collection.** Referenced collectors run on a `rayon` thread
+  pool, so the heaviest config still bottlenecks on its single slowest
+  collector (the CPU sample) instead of summing them.
 
 ## License
 

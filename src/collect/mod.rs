@@ -1,20 +1,31 @@
 //! Collector layer (spec §4.3).
 //!
 //! Each collector implements [`Collector`] and returns a `serde_json::Value`.
-//! The [`CollectorRegistry`] runs every registered collector once, caches
-//! the result, and serves lookups by dotted path (e.g. `"system.hostname"`).
+//! The [`CollectorRegistry`] runs every registered collector once (in
+//! parallel via `rayon`), caches the result, and serves lookups by dotted
+//! path (e.g. `"system.hostname"`).
 //!
-//! Phase 1 is sequential. Parallel collection via `rayon` lands in Phase 4
-//! when the collector set grows enough to justify it.
+//! [`CollectorRegistry::prime`] takes an optional filter — the layout
+//! pre-pass passes the set of collector roots actually referenced via
+//! `${data.<root>.*}` so we never run a collector nobody asked for.
 
+pub mod battery;
 pub mod cpu;
+pub mod datetime;
+pub mod desktop;
+pub mod disk;
+pub mod gpu;
 pub mod kernel;
 pub mod memory;
+pub mod network;
 pub mod os;
+pub mod packages;
 pub mod system;
+pub mod uptime;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use rayon::prelude::*;
 use serde_json::Value;
 
 use crate::error::CollectorError;
@@ -34,12 +45,16 @@ pub trait Collector: Send + Sync {
 pub fn collect_all_as_json() -> serde_json::Value {
     use serde_json::{Map, Value, json};
 
+    let collectors = all();
+    let results: Vec<(&'static str, Result<Value, CollectorError>)> = collectors
+        .par_iter()
+        .map(|c| (c.name(), c.collect()))
+        .collect();
+
     let mut out = Map::new();
     let mut errors = Map::new();
-
-    for collector in all() {
-        let name = collector.name();
-        match collector.collect() {
+    for (name, result) in results {
+        match result {
             Ok(value) => {
                 out.insert(name.to_string(), value);
             }
@@ -62,8 +77,16 @@ pub fn all() -> Vec<Box<dyn Collector>> {
         Box::new(system::System),
         Box::new(os::Os),
         Box::new(kernel::Kernel),
+        Box::new(uptime::Uptime),
         Box::new(cpu::Cpu),
         Box::new(memory::Memory),
+        Box::new(disk::Disk),
+        Box::new(gpu::Gpu),
+        Box::new(battery::Battery),
+        Box::new(network::Network),
+        Box::new(packages::Packages),
+        Box::new(desktop::Desktop),
+        Box::new(datetime::DateTime),
     ]
 }
 
@@ -78,31 +101,33 @@ impl CollectorRegistry {
         Self::default()
     }
 
-    /// Run every collector in `collectors` and stash the result. If `filter`
-    /// is `Some`, only collectors whose `name()` appears in the set actually
-    /// run — this is the pre-pass optimisation from spec §4.3.
+    /// Run every collector in `collectors` in parallel and stash results.
     ///
-    /// Phase 1 calls this with `filter = None` for simplicity; the layout
-    /// pre-pass that builds the referenced set lands in Phase 4.
-    pub fn prime(
-        &mut self,
-        collectors: &[Box<dyn Collector>],
-        filter: Option<&std::collections::HashSet<&str>>,
-    ) {
-        for collector in collectors {
-            let name = collector.name();
-            if let Some(filter) = filter
-                && !filter.contains(name)
-            {
-                continue;
-            }
-            let result = collector.collect();
+    /// If `filter` is `Some`, only collectors whose `name()` appears in the
+    /// set actually run — this is the pre-pass optimisation that drops
+    /// cold-start time for minimal configs.
+    pub fn prime(&mut self, collectors: &[Box<dyn Collector>], filter: Option<&HashSet<String>>) {
+        // Filter first, then run the remainder in parallel.
+        let scheduled: Vec<&Box<dyn Collector>> = collectors
+            .iter()
+            .filter(|c| match filter {
+                Some(set) => set.contains(c.name()),
+                None => true,
+            })
+            .collect();
+
+        let results: Vec<(&'static str, Result<Value, CollectorError>)> = scheduled
+            .par_iter()
+            .map(|c| (c.name(), c.collect()))
+            .collect();
+
+        for (name, result) in results {
             self.cache.insert(name, result);
         }
     }
 
     /// Test/mock helper: inject a pre-built value for a collector name.
-    #[allow(dead_code)] // Used by tests and (in Phase 4) by the pre-pass.
+    #[allow(dead_code)]
     pub fn insert(&mut self, name: &'static str, value: Value) {
         self.cache.insert(name, Ok(value));
     }

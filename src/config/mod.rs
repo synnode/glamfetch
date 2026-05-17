@@ -5,6 +5,7 @@
 
 pub mod expr;
 pub mod filters;
+pub mod prepass;
 pub mod schema;
 
 use std::path::{Path, PathBuf};
@@ -52,18 +53,31 @@ pub fn default_init_target() -> PathBuf {
     PathBuf::from(home).join(".config/glamfetch/config.toml")
 }
 
+/// Parsed config plus the original TOML text. The text is kept so the
+/// collector pre-pass can scan for `${data.<root>}` references without
+/// re-serialising.
+pub struct LoadedConfig {
+    pub text: String,
+    pub config: ConfigFile,
+}
+
 /// Load + parse a config file from disk.
-pub fn load_from_path(path: &Path) -> Result<ConfigFile, ConfigError> {
+pub fn load_from_path(path: &Path) -> Result<LoadedConfig, ConfigError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Io {
         path: path.to_path_buf(),
         source,
     })?;
-    parse(&text, path)
+    let config = parse(&text, path)?;
+    Ok(LoadedConfig { text, config })
 }
 
 /// Parse the embedded default preset.
-pub fn load_embedded_default() -> Result<ConfigFile, ConfigError> {
-    parse(DEFAULT_PRESET, Path::new("<embedded:default>"))
+pub fn load_embedded_default() -> Result<LoadedConfig, ConfigError> {
+    let config = parse(DEFAULT_PRESET, Path::new("<embedded:default>"))?;
+    Ok(LoadedConfig {
+        text: DEFAULT_PRESET.to_string(),
+        config,
+    })
 }
 
 fn parse(text: &str, path: &Path) -> Result<ConfigFile, ConfigError> {

@@ -18,7 +18,8 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 use glamfetch::collect::{CollectorRegistry, all as all_collectors};
 use glamfetch::config::expr::StaticContext;
-use glamfetch::config::{self, ConfigFile};
+use glamfetch::config::prepass;
+use glamfetch::config::{self, LoadedConfig};
 use glamfetch::layout::{Layout, Row};
 use glamfetch::render::ansi;
 use glamfetch::render::terminal::Capabilities;
@@ -70,8 +71,8 @@ fn run(cli: &Cli) -> Result<()> {
 }
 
 fn cmd_once(cli: &Cli) -> Result<()> {
-    let cfg = load_config(cli)?;
-    let frame = build_frame(cfg)?;
+    let loaded = load_config(cli)?;
+    let frame = build_frame(loaded)?;
 
     let caps = if cli.pipe {
         Capabilities::forced_pipe()
@@ -86,7 +87,9 @@ fn cmd_once(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn build_frame(cfg: ConfigFile) -> Result<Vec<StyledLine>> {
+fn build_frame(loaded: LoadedConfig) -> Result<Vec<StyledLine>> {
+    let LoadedConfig { text, config: cfg } = loaded;
+
     let resolved_theme = theme::resolve(&cfg.theme).context("resolving theme variables")?;
     let ctx = StaticContext {
         theme: resolved_theme,
@@ -101,9 +104,11 @@ fn build_frame(cfg: ConfigFile) -> Result<Vec<StyledLine>> {
         .collect::<Result<_, _>>()
         .context("building widget tree")?;
 
+    // Pre-pass: only run collectors that the layout actually references.
+    let referenced = prepass::referenced_data_roots(&text);
     let collectors = all_collectors();
     let mut registry = CollectorRegistry::new();
-    registry.prime(&collectors, None);
+    registry.prime(&collectors, Some(&referenced));
 
     let layout = Layout::new(rows, cfg.layout.gap);
     Ok(layout.render(&registry)?)
@@ -136,8 +141,8 @@ fn cmd_init(cli: &Cli) -> Result<()> {
 }
 
 fn cmd_print_config(cli: &Cli) -> Result<()> {
-    let cfg = load_config(cli)?;
-    let toml = toml::to_string_pretty(&cfg).context("re-serialising resolved config")?;
+    let loaded = load_config(cli)?;
+    let toml = toml::to_string_pretty(&loaded.config).context("re-serialising resolved config")?;
     print!("{toml}");
     Ok(())
 }
@@ -189,7 +194,7 @@ fn display_scalar(value: &serde_json::Value) -> String {
     }
 }
 
-fn load_config(cli: &Cli) -> Result<config::ConfigFile> {
+fn load_config(cli: &Cli) -> Result<LoadedConfig> {
     match config::resolve_path(cli.config.as_deref()) {
         Some(path) => {
             info!(path = %path.display(), "loading config");
