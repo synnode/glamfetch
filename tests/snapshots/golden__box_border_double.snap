@@ -1,0 +1,7 @@
+---
+source: tests/golden.rs
+expression: "render_mode(&frame, ColorMode::None)"
+---
+╔ double ════╗
+║ double box ║
+╚════════════╝

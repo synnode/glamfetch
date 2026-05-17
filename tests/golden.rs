@@ -282,6 +282,135 @@ content = "should be plain"
 }
 
 #[test]
+fn box_border_styles() {
+    for style in ["rounded", "sharp", "double", "thick", "ascii"] {
+        let toml_text = format!(
+            r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "box"
+title = "{style}"
+border = "{style}"
+padding = [0, 1]
+child = {{ widget = "text", content = "{style} box" }}
+"##
+        );
+        let frame = build_frame(parse(&toml_text), &mock_registry());
+        insta::assert_snapshot!(
+            format!("box_border_{style}"),
+            render_mode(&frame, ColorMode::None)
+        );
+    }
+}
+
+#[test]
+fn bar_widget_50_percent() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "bar"
+value = "50"
+max = 100
+width = 10
+filled_char = "#"
+empty_char = "-"
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn inner_row_with_separator_and_spacer() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "row"
+gap = 1
+children = [
+  { widget = "text", content = "left" },
+  { widget = "spacer", width = 3 },
+  { widget = "separator", char = "·", length = 8 },
+  { widget = "text", content = "right" },
+]
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn separator_auto_length_falls_back_when_no_parent_width() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "separator"
+char = "-"
+length = "auto"
+default_length = 5
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn ascii_inline_block() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "ascii"
+content = """
+ /\\_/\\
+( o.o )
+ > ^ <
+"""
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
+fn figlet_renders_built_in_font() {
+    let toml_text = r##"
+[layout]
+gap = 0
+
+[[row]]
+gap = 0
+
+[[row.cell]]
+widget = "figlet"
+text = "hi"
+font = "small"
+"##;
+    let frame = build_frame(parse(toml_text), &mock_registry());
+    insta::assert_snapshot!(render_mode(&frame, ColorMode::None));
+}
+
+#[test]
 fn filter_chain_humanize() {
     let toml_text = r#"
 [layout]

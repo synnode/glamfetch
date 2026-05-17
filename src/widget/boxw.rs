@@ -92,6 +92,59 @@ const ROUNDED: BorderChars = BorderChars {
     vertical: '│',
 };
 
+const SHARP: BorderChars = BorderChars {
+    top_left: '┌',
+    top_right: '┐',
+    bottom_left: '└',
+    bottom_right: '┘',
+    horizontal: '─',
+    vertical: '│',
+};
+
+const DOUBLE: BorderChars = BorderChars {
+    top_left: '╔',
+    top_right: '╗',
+    bottom_left: '╚',
+    bottom_right: '╝',
+    horizontal: '═',
+    vertical: '║',
+};
+
+const THICK: BorderChars = BorderChars {
+    top_left: '┏',
+    top_right: '┓',
+    bottom_left: '┗',
+    bottom_right: '┛',
+    horizontal: '━',
+    vertical: '┃',
+};
+
+const ASCII_BORDER: BorderChars = BorderChars {
+    top_left: '+',
+    top_right: '+',
+    bottom_left: '+',
+    bottom_right: '+',
+    horizontal: '-',
+    vertical: '|',
+};
+
+fn pick_border(name: &str) -> Result<BorderChars, ConfigError> {
+    Ok(match name {
+        "rounded" => ROUNDED,
+        "sharp" => SHARP,
+        "double" => DOUBLE,
+        "thick" => THICK,
+        "ascii" => ASCII_BORDER,
+        // `none` is handled separately — caller falls back to a zero-width
+        // border path that just renders the child.
+        other => {
+            return Err(ConfigError::Invalid(format!(
+                "unknown box border style `{other}` (valid: rounded, sharp, double, thick, ascii, none)"
+            )));
+        }
+    })
+}
+
 pub struct BoxWidget {
     title: Option<String>,
     title_style: Style,
@@ -103,14 +156,7 @@ pub struct BoxWidget {
 
 impl BoxWidget {
     pub fn build(cfg: BoxConfig, ctx: &StaticContext) -> Result<Self, ConfigError> {
-        let chars = match cfg.border.as_str() {
-            "rounded" => ROUNDED,
-            other => {
-                return Err(ConfigError::Invalid(format!(
-                    "box border style `{other}` not supported in v0.1.0 (use `rounded`)"
-                )));
-            }
-        };
+        let chars = pick_border(&cfg.border)?;
 
         let title = match cfg.title.as_deref() {
             Some(raw) => Some(eval_template(raw, &EvalContext::build_only(ctx))?),

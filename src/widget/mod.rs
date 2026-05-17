@@ -5,9 +5,15 @@
 //! caller style them later, or applies its own style at construction time
 //! (e.g. a text widget with a configured `color`).
 
+pub mod ascii;
+pub mod bar;
 pub mod boxw;
+pub mod figlet;
 pub mod gauge;
+pub mod row;
+pub mod separator;
 pub mod show_if;
+pub mod spacer;
 pub mod stack;
 pub mod text;
 
@@ -59,6 +65,12 @@ pub enum WidgetConfig {
     #[serde(rename = "box")]
     Box(boxw::BoxConfig),
     Gauge(gauge::GaugeConfig),
+    Bar(bar::BarConfig),
+    Row(row::RowConfig),
+    Spacer(spacer::SpacerConfig),
+    Separator(separator::SeparatorConfig),
+    Figlet(figlet::FigletConfig),
+    Ascii(ascii::AsciiConfig),
 }
 
 impl WidgetConfig {
@@ -69,6 +81,12 @@ impl WidgetConfig {
             Self::Stack(cfg) => Box::new(stack::StackWidget::build(cfg, ctx)?),
             Self::Box(cfg) => Box::new(boxw::BoxWidget::build(cfg, ctx)?),
             Self::Gauge(cfg) => Box::new(gauge::GaugeWidget::build(cfg, ctx)?),
+            Self::Bar(cfg) => Box::new(bar::BarWidget::build(cfg, ctx)?),
+            Self::Row(cfg) => Box::new(row::RowWidget::build(cfg, ctx)?),
+            Self::Spacer(cfg) => Box::new(spacer::SpacerWidget::build(cfg, ctx)?),
+            Self::Separator(cfg) => Box::new(separator::SeparatorWidget::build(cfg, ctx)?),
+            Self::Figlet(cfg) => Box::new(figlet::FigletWidget::build(cfg, ctx)?),
+            Self::Ascii(cfg) => Box::new(ascii::AsciiWidget::build(cfg, ctx)?),
         };
         match show_if {
             Some(expr) => Ok(Box::new(show_if::ShowIfWidget::wrap(
@@ -86,6 +104,12 @@ impl WidgetConfig {
             Self::Stack(cfg) => cfg.show_if.clone(),
             Self::Box(cfg) => cfg.show_if.clone(),
             Self::Gauge(cfg) => cfg.show_if.clone(),
+            Self::Bar(cfg) => cfg.show_if.clone(),
+            Self::Row(cfg) => cfg.show_if.clone(),
+            Self::Spacer(cfg) => cfg.show_if.clone(),
+            Self::Separator(cfg) => cfg.show_if.clone(),
+            Self::Figlet(cfg) => cfg.show_if.clone(),
+            Self::Ascii(cfg) => cfg.show_if.clone(),
         }
     }
 }

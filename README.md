@@ -6,7 +6,7 @@ A glamorous system-info fetch tool for the terminal. Alternative to
 `fastfetch` / `neofetch` for rice enthusiasts who want full styling control
 without sacrificing speed.
 
-> **Status:** post-v0.1.0, Phase 4 complete on `master`. See
+> **Status:** post-v0.1.0, Phase 5 complete on `master`. See
 > [`.docs/glamfetch-spec.md`](.docs/glamfetch-spec.md) for the full v1 spec
 > and phase roadmap. The v0.2.0 launch is the version that goes on r/unixporn.
 
@@ -76,7 +76,10 @@ schema, §7 for collector field listings, §8 for widget reference.
 What's in (master, post-v0.1.0):
 - Collectors: `system`, `os`, `kernel`, `uptime`, `cpu`, `mem`, `disk`,
   `gpu`, `battery`, `network`, `packages`, `desktop`, `datetime`
-- Widgets: `text`, `stack`, `box` (rounded border), `gauge`
+- Widgets: `text`, `stack`, `row` (inner), `box`, `gauge`, `bar`,
+  `spacer`, `separator`, `figlet`, `ascii`
+- Box borders: `rounded`, `sharp`, `double`, `thick`, `ascii`
+- Figlet fonts (embedded): `standard`, `slant`, `small`, `big`
 - Themes with `${theme.*}` variable resolution
 - Filters: `humanize`, `round`, `truncate`, `upper`/`lower`/`title`, `pad`, `default`
 - `show_if` conditional rendering (JSON-truthy semantics)
@@ -87,10 +90,9 @@ What's in (master, post-v0.1.0):
 
 Coming in v0.2.0:
 - `--watch` + `--edit` (live preview)
-- Remaining widgets (bar, separator, spacer, figlet, ascii, inner row)
 - Gradients (per-char interpolation)
 - Catppuccin / Gruvbox / Nord presets
-- All box border styles (sharp, double, thick, ascii)
+- `extends = "..."` config inheritance
 
 ## Performance
 
@@ -102,7 +104,7 @@ Measured on an Intel i7-13700K, release build (LTO + strip), Linux:
 | `glamfetch --pipe`, default preset (CPU + RAM gauges) | **59-60ms** |
 | `glamfetch --pipe`, minimal preset (no CPU usage) | **6-7ms** |
 | `glamfetch --json` (runs every collector) | **59-60ms** |
-| Binary size (release, stripped) | **2.1 MB** |
+| Binary size (release, stripped) | **2.4 MB** |
 
 Two things are doing the heavy lifting here:
 

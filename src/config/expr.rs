@@ -80,21 +80,17 @@ pub fn eval_template(input: &str, ctx: &EvalContext<'_>) -> Result<String, Confi
     Ok(out)
 }
 
-/// Evaluate a single `${...}` expression body (without the surrounding braces).
+/// Evaluate a value slot that may contain one or more `${...}` references
+/// mixed with literal text (e.g. a color string `"${theme.accent}"`, a
+/// plain `"#ff8800"`, or `"red"`). Strings without any `${` pass through
+/// unchanged.
 ///
-/// Used directly for widget parameter slots that hold *one* expression
-/// (e.g. `color = "${theme.accent}"`). For mixed templates use
-/// [`eval_template`].
+/// This is the public alias for [`eval_template`] used by widget builders
+/// — exposed separately to document the intended call site, not to add
+/// behavior. Use [`eval_template`] directly if you need to make it clear
+/// the input is a template string.
 pub fn eval_single(expr: &str, ctx: &EvalContext<'_>) -> Result<String, ConfigError> {
-    // Convenience: accept the literal `${...}` form as well as bare expressions.
-    let body = expr
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-        .unwrap_or(expr);
-    match eval_expr(body, ctx)? {
-        EvalResult::Resolved(s) => Ok(s),
-        EvalResult::Deferred => Ok(format!("${{{body}}}")),
-    }
+    eval_template(expr, ctx)
 }
 
 enum EvalResult {
