@@ -1,5 +1,7 @@
 # glamfetch
 
+![CI](https://github.com/synnode/glamfetch/actions/workflows/ci.yml/badge.svg)
+
 A glamorous system-info fetch tool for the terminal. Alternative to
 `fastfetch` / `neofetch` for rice enthusiasts who want full styling control
 without sacrificing speed.
